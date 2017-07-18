@@ -6,23 +6,59 @@
 -- To change this template use File | Settings | File Templates.
 --
 
-require "utils"
+dofile("utils.lua")
+wMenuCursorY = 0xcfa9
+wTileMap = 0xc4a0
+wJumptableIndex = 0xcf63
 
-guid1 = nil
-guid2 = nil
+local current_scene = 1
+memory.usememorydomain("System Bus")
 
 function print_frame_count_at()
-    print("Current frame: "..emu.framecount())
-    event.unregisterbyid(guid1)
+    console.writeline("Current frame: "..frame_delta())
+    event.unregisterbyname("Start")
 end
 
-function print_frame_count_at_bank39()
-    if memory.readbyte(0xff9d) == 0x39 then
-        console.write("Current frame: "..emu.framecount())
-        event.unregisterbyid(guid2)
+function print_frame_count_at_bank()
+    if memory.readbyte(hRomBank) == target_bank then
+        console.writeline("Current frame: "..frame_delta())
+        event.unregisterbyname("Gamefreak")
+    end
+end
+
+function press_on_frame(frame_target, input)
+    if frame_delta() == frame_target then
+        pressbutton(input)
+        current_scene = current_scene + 1
+        return true
+    end
+    return false
+end
+
+local input_mapper = {
+    {406, "A"}, -- Skip intro
+    {476, "A"}, -- Title screen
+    {530, "Down"}, -- Highlight OPTIONS
+    {534, "A"}, -- Select OPTIONS
+    {564, "Left"}, -- Fast text
+    {567, "Down"}, -- Battle Scene
+    {570, "Left"}, -- Off
+    {573, "Down"}, -- Battle Style
+    {576, "Left"}, -- Set
+    {579, "B"}, -- Confirm
+    {644, "A"} -- NEW GAME
+}
+
+function do_current_event()
+    if current_scene <= table.getn(input_mapper) then
+        press_on_frame(input_mapper[current_scene][1],
+                       input_mapper[current_scene][2])
+    else
+        console.writeline("Frame: "..frame_delta())
     end
 end
 
 console.clear()
-guid1 = event.onmemoryexecute(print_frame_count_at, 0x100)
-guid2 = event.onmemoryexecute(print_frame_count_at_bank39, 0x45c0)
+client.unpause()
+while event.unregisterbyname("MainEventLoop") do end
+event.onframeend(do_current_event, "MainEventLoop")
