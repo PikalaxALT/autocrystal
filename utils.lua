@@ -9,6 +9,10 @@
 hRomBank = 0xFF9D
 target_bank = 0
 wait_execute_name = ""
+startframe = 0
+which_array = 1
+current_scene = 1
+game_start_frame = 644
 
 function cycles_since_div_tick()
     return emu.totalexecutedcycles() % 256
@@ -36,7 +40,19 @@ function releasebutton(input)
     joypad.set(value)
 end
 
-local startframe = emu.framecount()
+function reset()
+    console.clear()
+    local tmp_input = {}
+    tmp_input["Power"] = true
+    joypad.set(tmp_input)
+    client.unpause()
+    startframe = emu.framecount()
+    while event.unregisterbyname("TitleAndNewGame") do end
+    current_scene = 1
+    which_array = 1
+    frame_offset = {0, game_start_frame}
+    event.onframeend(title_and_new_game, "TitleAndNewGame")
+end
 
 function frame_delta()
     return emu.framecount() - startframe

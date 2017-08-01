@@ -7,13 +7,17 @@
 --
 
 dofile("utils.lua")
+dofile("inputs.lua")
 wMenuCursorY = 0xcfa9
 wTileMap = 0xc4a0
 wJumptableIndex = 0xcf63
 wMapStatus = 0xd432
 toBeDestroyed = nil
 
-local current_scene = 1
+-- This value must be a multiple of 4 not less than 644.
+-- 644 is the earliest frame that can be reached by TAS.
+-- If this is set to any frame that is not a multiple of 4,
+-- the game will ignore the A input on that frame.
 memory.usememorydomain("System Bus")
 
 function print_frame_count_at()
@@ -36,7 +40,7 @@ function spam_a()
 end
 
 function press_on_frame(frame_target, input)
-    if frame_delta() == frame_target then
+    if frame_delta() == frame_target + frame_offset[which_array] then
         pressbutton(input)
         current_scene = current_scene + 1
         return true
@@ -45,50 +49,16 @@ function press_on_frame(frame_target, input)
 end
 
 function title_and_new_game()
-    local input_mapper = {
-        { 406, {"A"}}, -- Skip intro
-        { 476, {"A"}}, -- Title screen
-        { 530, {"Down"}}, -- Highlight OPTIONS
-        { 534, {"A"}}, -- Select OPTIONS
-        { 564, {"Left"}}, -- Fast text
-        { 567, {"Down"}}, -- Battle Scene
-        { 570, {"Left"}}, -- Off
-        { 573, {"Down"}}, -- Battle Style
-        { 576, {"Left"}}, -- Set
-        { 579, {"B"}}, -- Confirm
-        { 644, {"A"}}, -- NEW GAME
-        { 756, {"Down"}}, -- Hover over girl
-        { 760, {"A"}}, -- I'm a girl
-        { 903, {"A"}}, -- ..........................................
-        { 957, {"A"}}, -- Zzz... Hm? Wha...? You woke me up!
-        {1014, {"A"}}, -- Will you check the clock for me?
-        {1045, {"Up"}}, -- DAY 10 o'clock
-        {1051, {"Up"}}, -- DAY 11 o'clock
-        {1057, {"Up"}}, -- DAY 12 o'clock
-        {1063, {"Up"}}, -- DAY 1 o'clock
-        {1069, {"Up"}}, -- DAY 2 o'clock
-        {1075, {"Up"}}, -- DAY 3 o'clock
-        {1081, {"Up"}}, -- DAY 4 o'clock
-        {1087, {"A"}}, -- DAY 5 o'clock
-        {1117, {"A"}}, -- Confirm hour
-        {1169, {"Down"}}, -- 0 min.
-        {1175, {"Down"}}, -- 59 min.
-        {1181, {"Down"}}, -- 58 min.
-        {1187, {"Down"}}, -- 57 min.
-        {1193, {"Down"}}, -- 56 min.
-        {1199, {"Down"}}, -- 55 min.
-        {1205, {"Down"}}, -- 54 min.
-        {1211, {"Down"}}, -- 53 min.
-        {1217, {"Down"}}, -- 52 min.
-        {1223, {"Down"}}, -- 51 min.
-        {1229, {"A"}}, -- 50 min.
-        {1253, {"A"}}, -- Confirm minute.
-        {1300, {"A"}}, -- DAY 5:50! Yikes I over-
-        {1318, {"A"}}, -- slept!
-    }
-    if current_scene <= table.getn(input_mapper) then
-        press_on_frame(input_mapper[current_scene][1],
-                       input_mapper[current_scene][2])
+    if current_scene <= table.getn(input_mapper[which_array]) then
+        press_on_frame(input_mapper[which_array][current_scene][1],
+                       input_mapper[which_array][current_scene][2])
+    elseif which_array <= table.getn(input_mapper) then
+        if which_array == 1 then
+            event.onmemoryexecute(get_id, 0x5b44, "IDHasBeenSampled")
+            savestate.saveslot(0)
+        end
+        which_array = which_array + 1
+        current_scene = 1
     else
         while event.unregisterbyname("TitleAndNewGame") do end
         event.onmemoryexecute(pause_savestate, 0xa57, "WaitButtonPollFrame")
@@ -98,14 +68,24 @@ end
 function pause_savestate()
     print_frame_count_at()
     client.pause()
-    savestate.saveslot(0)
     while event.unregisterbyname("WaitButtonPollFrame") do end
 end
 
-console.clear()
-local tmp_input = {}
-tmp_input["Power"] = true
-joypad.set(tmp_input)
-client.unpause()
-while event.unregisterbyname("TitleAndNewGame") do end
-event.onframeend(title_and_new_game, "TitleAndNewGame")
+function get_id()
+    local player_id = memory.read_u16_le(0xd47b)
+    local lotto_id = memory.read_u16_le(0xdc9f)
+    if player_id ~= lotto_id then
+        game_start_frame = game_start_frame + 4
+        current_scene = table.getn(input_mapper[1])
+        which_array = 1
+        console.writeline("Trying start at frame "..game_start_frame)
+        savestate.loadslot(0)
+    else
+        client.pause()
+    end
+    console.writeline("Player ID: "..player_id)
+    console.writeline("Lotto ID: "..lotto_id)
+    while event.unregisterbyname("IDHasBeenSampled") do end
+end
+
+reset()
