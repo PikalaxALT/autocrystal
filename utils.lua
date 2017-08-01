@@ -6,8 +6,9 @@
 -- To change this template use File | Settings | File Templates.
 --
 
-local hRomBank = 0xFF9D
-local target_bank = 0
+hRomBank = 0xFF9D
+target_bank = 0
+wait_execute_name = ""
 
 function cycles_since_div_tick()
     return emu.totalexecutedcycles() % 256
@@ -19,16 +20,20 @@ end
 
 function pressbutton(input)
     local value = {}
-    value[input] = true
+    for i, button in pairs(input) do
+        value[button] = true
+        console.writeline("Pressed "..button.." at frame "..frame_delta())
+    end
     joypad.set(value)
-    console.writeline("Pressed "..input.." at frame "..frame_delta())
 end
 
 function releasebutton(input)
     local value = {}
-    value[input] = false
+    for i, button in pairs(input) do
+        value[button] = false
+        console.writeline("Released "..button.." at frame "..frame_delta())
+    end
     joypad.set(value)
-    console.writeline("Released "..input.." at frame "..frame_delta())
 end
 
 local startframe = emu.framecount()
@@ -43,4 +48,5 @@ function on_rom_execute(func, gbaddr, name)
     if bank ~= 0 then addr = bit.bor(addr, 0x4000) end
     target_bank = bank
     event.onmemoryexecute(func, addr, name)
+    wait_execute_name = name
 end
